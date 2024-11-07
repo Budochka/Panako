@@ -1,9 +1,6 @@
 package be.panako.strategy.panako.storage;
 
-import java.io.File;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,11 +10,6 @@ import java.util.Set;
 
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
-
-import be.panako.cli.Application;
-import be.panako.util.Config;
-import be.panako.util.FileUtils;
-import be.panako.util.Key;
 
 public class PanakoStorageScylla implements PanakoStorage {
 
@@ -59,8 +51,9 @@ public class PanakoStorageScylla implements PanakoStorage {
 	public PanakoStorageScylla() 
     {		
        session = CqlSession.builder()
-                .addContactPoint(new InetSocketAddress("127.0.0.1", 9042))
-                .withLocalDatacenter("datacenter1") // Replace with your datacenter name
+                .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
+                .withLocalDatacenter("scylla_data_center") // Replace with your datacenter name
+                .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
                 .build();
 
 		storeQueue = new HashMap<Long,List<long[]>>();
@@ -79,7 +72,7 @@ public class PanakoStorageScylla implements PanakoStorage {
     @Override
     public void storeMetadata(long resourceID, String resourcePath, float duration, int fingerprints) 
     {
-        String insertQuery = "INSERT INTO metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)";
+        String insertQuery = "INSERT INTO test.metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)";
 
         session.execute(
             SimpleStatement.newInstance(insertQuery, resourceID, resourcePath, duration, fingerprints)
@@ -102,7 +95,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 		if (storeQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			return;
 		
@@ -111,14 +104,20 @@ public class PanakoStorageScylla implements PanakoStorage {
 		if (queue.isEmpty())
 			return;
 
-        
+        String insertQuery = "INSERT INTO test.fingerprints (fingerprintHash, resource_id, t1, f1) VALUES (?, ?, ?, ?)";
+
+        for(long[] data : queue) 
+        {
+            session.execute(
+                SimpleStatement.newInstance(insertQuery, data[0], data[1], data[2], data[3]));            
+        }                        
    }
 
     @Override
     public PanakoResourceMetadata getMetadata(long identifier) 
     {
         PanakoResourceMetadata metadata = null;
-        String query = "SELECT resource_id, resource_path, duration, num_fingerprints FROM resource_metadata WHERE resource_id = ?";
+        String query = "SELECT resource_id, resource_path, duration, num_fingerprints FROM test.metadata WHERE resource_id = ?";
 
         ResultSet resultSet = session.execute(
             SimpleStatement.newInstance(query, identifier)
@@ -141,7 +140,7 @@ public class PanakoStorageScylla implements PanakoStorage {
     public void printStatistics(boolean detailedStats) 
     {
         ResultSet resultSet = session.execute(
-            SimpleStatement.newInstance("SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM resource_metadata")
+            SimpleStatement.newInstance("SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM test.metadata")
         );
 
         double totalDuration = 0;
@@ -167,7 +166,7 @@ public class PanakoStorageScylla implements PanakoStorage {
     @Override
     public void deleteMetadata(long resourceID) 
     {
-        String deleteQuery = "DELETE FROM metadata WHERE resource_id = ?";
+        String deleteQuery = "DELETE FROM test.metadata WHERE resource_id = ?";
 
         session.execute(
             SimpleStatement.newInstance(deleteQuery, resourceID)
@@ -191,9 +190,46 @@ public class PanakoStorageScylla implements PanakoStorage {
 
     @Override
     public void processQueryQueue(Map<Long, List<PanakoHit>> matchAccumulator, int range,
-            Set<Integer> resourcesToAvoid) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'processQueryQueue'");
+            Set<Integer> resourcesToAvoid) 
+    {	
+        if (queryQueue.isEmpty())
+        return;
+    
+        long threadID = Thread.currentThread().threadId();
+        if(!queryQueue.containsKey(threadID))
+            return;
+        
+        List<Long> queue = queryQueue.get(threadID);
+        
+        if (queue.isEmpty())
+            return;            
+
+        for (Long originalKey : queue) {
+            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash >= ? AND fingerprintHash <= ? ALLOW FILTERING";
+
+            ResultSet resultSet = session.execute(
+                SimpleStatement.newInstance(query, originalKey - range, originalKey + range)
+            );
+
+            for (Row row : resultSet) 
+            {
+                if (row != null) 
+                {
+                    long fingerprintHash = row.getLong("fingerprintHash");
+                    long resourceID = row.getLong("resource_id");
+                    long t = row.getLong("t1");
+                    long f = row.getLong("f1");
+    
+                    if(!resourcesToAvoid.contains((int) resourceID)) 
+                    {
+                        if(!matchAccumulator.containsKey(originalKey))
+                            matchAccumulator.put(originalKey,new ArrayList<PanakoHit>());
+                        matchAccumulator.get(originalKey).add(new PanakoHit(originalKey, fingerprintHash, t, resourceID, f));
+                    }
+                }
+
+            }
+        }
     }
 
     @Override
@@ -207,9 +243,27 @@ public class PanakoStorageScylla implements PanakoStorage {
     }
 
     @Override
-    public void processDeleteQueue() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'processDeleteQueue'");
+    public void processDeleteQueue() 
+    {
+		if (storeQueue.isEmpty())
+			return;
+		
+		long threadID = Thread.currentThread().threadId();
+		if(!storeQueue.containsKey(threadID))
+			return;
+		
+		List<long[]> queue = storeQueue.get(threadID);
+		
+		if (queue.isEmpty())
+			return;
+            
+        String deleteQuery = "DELETE FROM test.fingerprints WHERE fingerprintHash = ?";
+
+        for(long[] data : queue) 
+        {
+            session.execute(
+                SimpleStatement.newInstance(deleteQuery, data[0]));            
+        }
     }
 
     @Override
