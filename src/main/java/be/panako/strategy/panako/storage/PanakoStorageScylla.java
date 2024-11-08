@@ -75,7 +75,7 @@ public class PanakoStorageScylla implements PanakoStorage {
         String insertQuery = "INSERT INTO test.metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)";
 
         session.execute(
-            SimpleStatement.newInstance(insertQuery, resourceID, resourcePath, duration, fingerprints)
+            SimpleStatement.newInstance(insertQuery, resourceID, resourcePath, (double)duration, fingerprints)
         );
     }
 
@@ -109,7 +109,7 @@ public class PanakoStorageScylla implements PanakoStorage {
         for(long[] data : queue) 
         {
             session.execute(
-                SimpleStatement.newInstance(insertQuery, data[0], data[1], data[2], data[3]));            
+                SimpleStatement.newInstance(insertQuery, data[0], data[1], (int)data[2], (int)data[3]));            
         }                        
    }
 
@@ -150,9 +150,9 @@ public class PanakoStorageScylla implements PanakoStorage {
         Row row = resultSet.one();
         if (row != null) 
         { 
-            totalResources = row.getLong(0);
+            totalResources = row.getInt(0);
             totalDuration = row.getDouble(1);
-            totalPrints = row.getLong(2);
+            totalPrints = row.getInt(2);
         }          
         		      
         System.out.printf("Database statistics\n");
@@ -231,8 +231,8 @@ public class PanakoStorageScylla implements PanakoStorage {
                 {
                     long fingerprintHash = row.getLong("fingerprintHash");
                     long resourceID = row.getLong("resource_id");
-                    long t = row.getLong("t1");
-                    long f = row.getLong("f1");
+                    long t = row.getInt("t1");
+                    long f = row.getInt("f1");
     
                     if(!resourcesToAvoid.contains((int) resourceID)) 
                     {

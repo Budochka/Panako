@@ -414,7 +414,7 @@ public enum Key{
 	 * The storage to use: MEM|LMDB
 	 * Stands for Memory, files on disk or the LMDB key-value store
 	 */
-	PANAKO_STORAGE("LMDB"),
+	PANAKO_STORAGE("SCYLLA"),
 
 	/**
 	 * Folder to store the lmdb databese
