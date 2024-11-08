@@ -29,5 +29,3 @@ dbs
 
 eval_data
 eval_panako
-
-!gradle/wrapper/*
