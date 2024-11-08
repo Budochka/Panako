@@ -16,7 +16,8 @@
             "request": "launch",
             "mainClass": "be.panako.cli.Panako",
             "projectName": "panako",
-            "vmArgs": "store STRATEGY=panako dataset/reference_items/*"
+            "cwd": "${workspaceFolder}/resources/scripts/create_test_dataset",
+            "args": "store STRATEGY=panako dataset/reference_items/*"
         }
     ]
 }

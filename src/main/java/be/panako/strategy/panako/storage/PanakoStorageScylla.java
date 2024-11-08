@@ -66,7 +66,6 @@ public class PanakoStorageScylla implements PanakoStorage {
 	 */
 	public void close() 
     {
-		session.close();
 	}
 
     @Override
@@ -206,7 +205,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 
         for (Long originalKey : queue) 
         {
-            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (?)";
+            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (";
 
             String hashes = "";
             boolean first = true;
@@ -221,8 +220,10 @@ public class PanakoStorageScylla implements PanakoStorage {
                 hashes += Long.toString(r);
             }
 
+            query += hashes + ")";
+
             ResultSet resultSet = session.execute(
-                SimpleStatement.newInstance(query, hashes)
+                SimpleStatement.newInstance(query)
             );
 
             for (Row row : resultSet) 
