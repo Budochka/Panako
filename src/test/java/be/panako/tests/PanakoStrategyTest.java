@@ -7,9 +7,7 @@ import be.panako.strategy.panako.PanakoStrategy;
 import be.panako.util.Config;
 import be.panako.util.FileUtils;
 import be.panako.util.Key;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.io.File;
 import java.util.ArrayList;

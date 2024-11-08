@@ -13,7 +13,6 @@ import be.panako.strategy.olaf.storage.OlafStorageKV;
 import be.panako.util.Config;
 import be.panako.util.FileUtils;
 import be.panako.util.Key;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
