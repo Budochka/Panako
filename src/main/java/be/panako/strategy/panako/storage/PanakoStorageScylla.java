@@ -52,7 +52,7 @@ public class PanakoStorageScylla implements PanakoStorage {
     {		
        session = CqlSession.builder()
                 .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
-                .withLocalDatacenter("scylla_data_center") // Replace with your datacenter name
+                .withLocalDatacenter("scylla_data_center") 
                 .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
                 .build();
 
@@ -204,11 +204,25 @@ public class PanakoStorageScylla implements PanakoStorage {
         if (queue.isEmpty())
             return;            
 
-        for (Long originalKey : queue) {
-            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash >= ? AND fingerprintHash <= ? ALLOW FILTERING";
+        for (Long originalKey : queue) 
+        {
+            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (?)";
+
+            String hashes = "";
+            boolean first = true;
+
+            //Generate string for IN statement
+            for (long r = originalKey - range; r<= originalKey + range; r++)
+            {
+                if (first)
+                    first = false;
+                else
+                    hashes += ", ";
+                hashes += Long.toString(r);
+            }
 
             ResultSet resultSet = session.execute(
-                SimpleStatement.newInstance(query, originalKey - range, originalKey + range)
+                SimpleStatement.newInstance(query, hashes)
             );
 
             for (Row row : resultSet) 

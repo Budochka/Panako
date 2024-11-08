@@ -92,6 +92,8 @@ public class PanakoStrategy extends Strategy {
 			db = PanakoStorageKV.getInstance();
 		}else if (Config.get(Key.PANAKO_STORAGE).equalsIgnoreCase("FILE")) {
 			db = PanakoStorageFile.getInstance();
+		}else if (Config.get(Key.PANAKO_STORAGE).equalsIgnoreCase("SCYLLA")) {
+			db = PanakoStorageScylla.getInstance();
 		}else {
 			db = PanakoStorageMemory.getInstance();
 		}
