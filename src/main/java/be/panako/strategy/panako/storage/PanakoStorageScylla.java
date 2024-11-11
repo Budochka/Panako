@@ -11,7 +11,7 @@ import java.util.Set;
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 
-public class PanakoStorageScylla implements PanakoStorage {
+public class PanakoStorageScylla implements PanakoStorage, AutoCloseable {
 
 	/**
 	 * The single instance of the storage.
@@ -49,23 +49,16 @@ public class PanakoStorageScylla implements PanakoStorage {
 	 * Create a new storage instance
 	 */
 	public PanakoStorageScylla() 
-    {		
-       session = CqlSession.builder()
-                .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
-                .withLocalDatacenter("scylla_data_center") 
-                .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
-                .build();
+    {	
+        session = CqlSession.builder()
+                    .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
+                    .withLocalDatacenter("scylla_data_center") 
+                    .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
+                    .build();
 
 		storeQueue = new HashMap<Long,List<long[]>>();
 		deleteQueue = new HashMap<Long,List<long[]>>();
 		queryQueue = new HashMap<Long,List<Long>>();
-	}
-
-    /**
-	 * Closes the database environment.
-	 */
-	public void close() 
-    {
 	}
 
     @Override
@@ -205,7 +198,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 
         for (Long originalKey : queue) 
         {
-            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (";
+            String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (?)";
 
             String hashes = "";
             boolean first = true;
@@ -220,10 +213,8 @@ public class PanakoStorageScylla implements PanakoStorage {
                 hashes += Long.toString(r);
             }
 
-            query += hashes + ")";
-
             ResultSet resultSet = session.execute(
-                SimpleStatement.newInstance(query)
+                SimpleStatement.newInstance(query, hashes)
             );
 
             for (Row row : resultSet) 
@@ -282,8 +273,23 @@ public class PanakoStorageScylla implements PanakoStorage {
     }
 
     @Override
-    public void clear() {
-       close();
+    public void clear() 
+    {
+        storeQueue.clear();
+        deleteQueue.clear();
+        queryQueue.clear();
     }
 
+    @Override
+    public void close() throws Exception 
+    {
+        if (session != null)
+        {
+            if (!session.isClosed())
+            {
+               session.close();
+               session = null;
+            }
+        }
+    }
 }
