@@ -16,7 +16,8 @@ public class PanakoStorageScylla implements PanakoStorage {
      */
     private static final PanakoStorageScylla instance = new PanakoStorageScylla();
     private final CqlSession session;
-    private final PreparedStatement storageStatement;
+    private final PreparedStatement storeMetadataStatement;
+    private final PreparedStatement storeFingerprintStatement;
     private final PreparedStatement queryStatement;
     private final PreparedStatement deleteStatement;
     private final String statisticsStatement;
@@ -39,8 +40,13 @@ public class PanakoStorageScylla implements PanakoStorage {
                 .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
                 .build();
 
-        storageStatement = session.prepare(
+        storeMetadataStatement = session.prepare(
                 "INSERT INTO test.metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)");
+
+        storeFingerprintStatement = session.prepare(
+                "INSERT INTO test.fingerprints (fingerprintHash, resource_id, t1, f1) VALUES (?, ?, ?, ?)");
+
+        
         queryStatement = session.prepare(
                 "SELECT resource_id, resource_path, duration, num_fingerprints FROM test.metadata WHERE resource_id = ?");
         deleteStatement = session.prepare("DELETE FROM test.metadata WHERE resource_id = ?");
@@ -49,7 +55,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 
     @Override
     public void storeMetadata(long resourceID, String resourcePath, float duration, int fingerprints) {
-        session.execute(storageStatement.bind(resourceID, resourcePath, (double) duration, fingerprints));
+        session.execute(storeMetadataStatement.bind(resourceID, resourcePath, (double) duration, fingerprints));
     }
 
     @Override
@@ -64,7 +70,7 @@ public class PanakoStorageScylla implements PanakoStorage {
         storeQueue.drainTo(queueLocal);
 
         for (List<Long> data : queueLocal) {
-            session.execute(storageStatement.bind(data.get(0),
+            session.execute(storeFingerprintStatement.bind(data.get(0),
                     data.get(1),
                     data.get(2).intValue(),
                     data.get(3).intValue()));
@@ -98,7 +104,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 
         Row row = resultSet.one();
         if (row != null) {
-            totalResources = row.getInt(0);
+            totalResources = row.getLong(0);
             totalDuration = row.getDouble(1);
             totalPrints = row.getInt(2);
         }
