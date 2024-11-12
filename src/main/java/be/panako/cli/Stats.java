@@ -46,19 +46,23 @@ class Stats extends Application {
 	@Override
 	public void run(String... args) {
 		Strategy strategy = Strategy.getInstance();
-		if(args.length == 1){
-			int seconds = Integer.valueOf(args[0]);
-			while(true){
+		try {
+			if (args.length == 1) {
+				int seconds = Integer.valueOf(args[0]);
+				while (true) {
+					strategy.printStorageStatistics();
+					try {
+						Thread.sleep(seconds * 1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					System.out.println();
+				}
+			} else {
 				strategy.printStorageStatistics();
-				try {
-					Thread.sleep(seconds * 1000);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				} 
-				System.out.println();
 			}
-		}else{
-			strategy.printStorageStatistics();
+		} finally {
+			strategy.clear();
 		}
 	}
 	
