@@ -19,7 +19,7 @@ public class PanakoStorageScylla implements PanakoStorage {
     private final PreparedStatement storageStatement;
     private final PreparedStatement queryStatement;
     private final PreparedStatement deleteStatement;
-    private final PreparedStatement statisticsStatement;
+    private final String statisticsStatement;
 
     private final BlockingQueue<List<Long>> storeQueue = new LinkedBlockingQueue<>();
     private final BlockingQueue<Long> queryQueue = new LinkedBlockingQueue<>();
@@ -44,7 +44,7 @@ public class PanakoStorageScylla implements PanakoStorage {
         queryStatement = session.prepare(
                 "SELECT resource_id, resource_path, duration, num_fingerprints FROM test.metadata WHERE resource_id = ?");
         deleteStatement = session.prepare("DELETE FROM test.metadata WHERE resource_id = ?");
-        statisticsStatement = session.prepare("SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM test.metadata");
+        statisticsStatement = "SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM test.metadata";
     }
 
     @Override
@@ -90,7 +90,7 @@ public class PanakoStorageScylla implements PanakoStorage {
 
     @Override
     public void printStatistics(boolean detailedStats) {
-        ResultSet resultSet = session.execute((Statement<?>) statisticsStatement);
+        ResultSet resultSet = session.execute(statisticsStatement);
 
         double totalDuration = 0;
         long totalPrints = 0;
