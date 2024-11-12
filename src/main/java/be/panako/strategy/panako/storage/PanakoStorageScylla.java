@@ -1,202 +1,138 @@
 package be.panako.strategy.panako.storage;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.cql.*;
 
-public class PanakoStorageScylla implements PanakoStorage, AutoCloseable {
+public class PanakoStorageScylla implements PanakoStorage {
 
-	/**
-	 * The single instance of the storage.
-	 */
-	private static PanakoStorageScylla instance;
+    /**
+     * The single instance of the storage.
+     */
+    private static final PanakoStorageScylla instance = new PanakoStorageScylla();
+    private final CqlSession session;
+    private final PreparedStatement storageStatement;
+    private final PreparedStatement queryStatement;
+    private final PreparedStatement deleteStatement;
+    private final PreparedStatement statisticsStatement;
 
-	/**
-	 * A mutex for synchronization purposes
-	 */
-	private static final Object mutex = new Object();
+    private final BlockingQueue<List<Long>> storeQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Long> queryQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Integer> deleteQueue = new LinkedBlockingQueue<>();
 
-	/**
-	 * Uses a singleton pattern.
-	 * @return Returns or creates a storage instance. This should be a thread
-	 *         safe operation.
-	 */
-	public synchronized static PanakoStorageScylla getInstance() {
-		if (instance == null) {
-			synchronized (mutex) {
-				if (instance == null) {
-					instance = new PanakoStorageScylla();
-				}
-			}
-		}
-		return instance;
-	}
-	
-	final Map<Long,List<long[]>> storeQueue;
-	final Map<Long,List<long[]>> deleteQueue;
-	final Map<Long,List<Long>> queryQueue;
+    public static PanakoStorage getInstance() {
+        return instance;
+    }
 
-    CqlSession session;
-
-	/**
-	 * Create a new storage instance
-	 */
-	public PanakoStorageScylla() 
-    {	
+    /**
+     * Create a new storage instance
+     */
+    public PanakoStorageScylla() {
         session = CqlSession.builder()
-                    .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
-                    .withLocalDatacenter("scylla_data_center") 
-                    .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
-                    .build();
+                .addContactPoint(new InetSocketAddress("51.250.47.177", 9042))
+                .withLocalDatacenter("scylla_data_center")
+                .withAuthCredentials("cassandra", "Axg7na0w6HTL5yw")
+                .build();
 
-		storeQueue = new HashMap<Long,List<long[]>>();
-		deleteQueue = new HashMap<Long,List<long[]>>();
-		queryQueue = new HashMap<Long,List<Long>>();
-	}
-
-    @Override
-    public void storeMetadata(long resourceID, String resourcePath, float duration, int fingerprints) 
-    {
-        String insertQuery = "INSERT INTO test.metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)";
-
-        session.execute(
-            SimpleStatement.newInstance(insertQuery, resourceID, resourcePath, (double)duration, fingerprints)
-        );
+        storageStatement = session.prepare(
+                "INSERT INTO test.metadata (resource_id, resource_path, duration, num_fingerprints) VALUES (?, ?, ?, ?)");
+        queryStatement = session.prepare(
+                "SELECT resource_id, resource_path, duration, num_fingerprints FROM test.metadata WHERE resource_id = ?");
+        deleteStatement = session.prepare("DELETE FROM test.metadata WHERE resource_id = ?");
+        statisticsStatement = session.prepare("SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM test.metadata");
     }
 
     @Override
-    public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1, int f1) 
-    {
-		long[] data = {fingerprintHash,resourceIdentifier,t1,f1};
-		long threadID = Thread.currentThread().threadId();
-		if(!storeQueue.containsKey(threadID))
-			storeQueue.put(threadID, new ArrayList<long[]>());
-		storeQueue.get(threadID).add(data);
+    public void storeMetadata(long resourceID, String resourcePath, float duration, int fingerprints) {
+        session.execute(storageStatement.bind(resourceID, resourcePath, (double) duration, fingerprints));
     }
 
     @Override
-    public void processStoreQueue() 
-    {
-		if (storeQueue.isEmpty())
-			return;
-		
-		long threadID = Thread.currentThread().threadId();
-		if(!storeQueue.containsKey(threadID))
-			return;
-		
-		List<long[]> queue = storeQueue.get(threadID);
-		
-		if (queue.isEmpty())
-			return;
-
-        String insertQuery = "INSERT INTO test.fingerprints (fingerprintHash, resource_id, t1, f1) VALUES (?, ?, ?, ?)";
-
-        for(long[] data : queue) 
-        {
-            session.execute(
-                SimpleStatement.newInstance(insertQuery, data[0], data[1], (int)data[2], (int)data[3]));            
-        }                        
-   }
+    public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1, int f1) {
+        Long[] data = {fingerprintHash, (long) resourceIdentifier, (long) t1, (long) f1};
+        storeQueue.add(Arrays.asList(data));
+    }
 
     @Override
-    public PanakoResourceMetadata getMetadata(long identifier) 
-    {
+    public void processStoreQueue() {
+        List<List<Long>> queueLocal = new ArrayList<>();
+        storeQueue.drainTo(queueLocal);
+
+        for (List<Long> data : queueLocal) {
+            session.execute(storageStatement.bind(data.get(0),
+                    data.get(1),
+                    data.get(2).intValue(),
+                    data.get(3).intValue()));
+        }
+    }
+
+    @Override
+    public PanakoResourceMetadata getMetadata(long identifier) {
         PanakoResourceMetadata metadata = null;
-        String query = "SELECT resource_id, resource_path, duration, num_fingerprints FROM test.metadata WHERE resource_id = ?";
-
-        ResultSet resultSet = session.execute(
-            SimpleStatement.newInstance(query, identifier)
-        );
+        ResultSet resultSet = session.execute(queryStatement.bind(identifier));
 
         Row row = resultSet.one();
-        if (row != null) 
-        {
+        if (row != null) {
             metadata = new PanakoResourceMetadata();
             metadata.identifier = row.getLong("resource_id");
             metadata.path = row.getString("resource_path");
             metadata.duration = row.getDouble("duration");
             metadata.numFingerprints = row.getInt("num_fingerprints");
         }
- 
+
         return metadata;
     }
 
     @Override
-    public void printStatistics(boolean detailedStats) 
-    {
-        ResultSet resultSet = session.execute(
-            SimpleStatement.newInstance("SELECT count(resource_id), sum(duration), sum(num_fingerprints) FROM test.metadata")
-        );
+    public void printStatistics(boolean detailedStats) {
+        ResultSet resultSet = session.execute((Statement<?>) statisticsStatement);
 
         double totalDuration = 0;
         long totalPrints = 0;
         long totalResources = 0;
 
         Row row = resultSet.one();
-        if (row != null) 
-        { 
+        if (row != null) {
             totalResources = row.getInt(0);
             totalDuration = row.getDouble(1);
             totalPrints = row.getInt(2);
-        }          
-        		      
+        }
+
         System.out.printf("Database statistics\n");
         System.out.printf("=========================\n");
-        System.out.printf("> %d audio files \n",totalResources);
-        System.out.printf("> %.3f seconds of audio\n",totalDuration);
-        System.out.printf("> %d fingerprint hashes \n",totalPrints);
+        System.out.printf("> %d audio files \n", totalResources);
+        System.out.printf("> %.3f seconds of audio\n", totalDuration);
+        System.out.printf("> %d fingerprint hashes \n", totalPrints);
         System.out.printf("=========================\n\n");
     }
 
     @Override
-    public void deleteMetadata(long resourceID) 
-    {
-        String deleteQuery = "DELETE FROM test.metadata WHERE resource_id = ?";
-
-        session.execute(
-            SimpleStatement.newInstance(deleteQuery, resourceID)
-        );
+    public void deleteMetadata(long resourceID) {
+        session.execute(deleteStatement.bind(resourceID));
     }
 
     @Override
-    public void addToQueryQueue(long queryHash) 
-    {
-		long threadID = Thread.currentThread().threadId();
-		if(!queryQueue.containsKey(threadID))
-			queryQueue.put(threadID, new ArrayList<Long>());
-		queryQueue.get(threadID).add(queryHash);
+    public void addToQueryQueue(long queryHash) {
+        queryQueue.add(queryHash);
     }
 
     @Override
-    public void processQueryQueue(Map<Long, List<PanakoHit>> matchAccumulator, int range) 
-    {
-        processQueryQueue(matchAccumulator, range, new HashSet<Integer>());
+    public void processQueryQueue(Map<Long, List<PanakoHit>> matchAccumulator, int range) {
+        processQueryQueue(matchAccumulator, range, new HashSet<>());
     }
 
     @Override
     public void processQueryQueue(Map<Long, List<PanakoHit>> matchAccumulator, int range,
-            Set<Integer> resourcesToAvoid) 
-    {	
-        if (queryQueue.isEmpty())
-        return;
-    
-        long threadID = Thread.currentThread().threadId();
-        if(!queryQueue.containsKey(threadID))
-            return;
-        
-        List<Long> queue = queryQueue.get(threadID);
-        
-        if (queue.isEmpty())
-            return;            
+                                  Set<Integer> resourcesToAvoid) {
+        List<Long> batch = new ArrayList<>();
+        queryQueue.drainTo(batch);
 
-        for (Long originalKey : queue) 
+        for (Long originalKey : batch)
         {
             String query = "SELECT fingerprintHash, resource_id, t1, f1 from test.fingerprints WHERE fingerprintHash IN (";
 
@@ -204,8 +140,7 @@ public class PanakoStorageScylla implements PanakoStorage, AutoCloseable {
             boolean first = true;
 
             //Generate string for IN statement
-            for (long r = originalKey - range; r<= originalKey + range; r++)
-            {
+            for (long r = originalKey - range; r <= originalKey + range; r++) {
                 if (first)
                     first = false;
                 else
@@ -219,19 +154,17 @@ public class PanakoStorageScylla implements PanakoStorage, AutoCloseable {
                 SimpleStatement.newInstance(query)
             );
 
-            for (Row row : resultSet) 
-            {
-                if (row != null) 
-                {
+            for (Row row : resultSet) {
+                if (row != null) {
                     long fingerprintHash = row.getLong("fingerprintHash");
                     long resourceID = row.getLong("resource_id");
                     long t = row.getInt("t1");
                     long f = row.getInt("f1");
-    
-                    if(!resourcesToAvoid.contains((int) resourceID)) 
-                    {
-                        if(!matchAccumulator.containsKey(originalKey))
-                            matchAccumulator.put(originalKey,new ArrayList<PanakoHit>());
+
+                    if (!resourcesToAvoid.contains((int) resourceID)) {
+                        if (!matchAccumulator.containsKey(originalKey)) {
+                            matchAccumulator.put(originalKey, new ArrayList<>());
+                        }
                         matchAccumulator.get(originalKey).add(new PanakoHit(originalKey, fingerprintHash, t, resourceID, f));
                     }
                 }
@@ -241,57 +174,22 @@ public class PanakoStorageScylla implements PanakoStorage, AutoCloseable {
     }
 
     @Override
-    public void addToDeleteQueue(long fingerprintHash, int resourceIdentifier, int t1, int f1) 
-    {
-		long[] data = {fingerprintHash,resourceIdentifier,t1,f1};
-		long threadID = Thread.currentThread().threadId();
-		if(!deleteQueue.containsKey(threadID))
-			deleteQueue.put(threadID, new ArrayList<long[]>());
-		deleteQueue.get(threadID).add(data);
+    public void addToDeleteQueue(long fingerprintHash, int resourceIdentifier, int t1, int f1) {
+        deleteQueue.add(resourceIdentifier);
     }
 
     @Override
-    public void processDeleteQueue() 
-    {
-		if (storeQueue.isEmpty())
-			return;
-		
-		long threadID = Thread.currentThread().threadId();
-		if(!storeQueue.containsKey(threadID))
-			return;
-		
-		List<long[]> queue = storeQueue.get(threadID);
-		
-		if (queue.isEmpty())
-			return;
-            
-        String deleteQuery = "DELETE FROM test.fingerprints WHERE fingerprintHash = ?";
+    public void processDeleteQueue() {
+        List<Integer> queueLocal = new ArrayList<>();
+        deleteQueue.drainTo(queueLocal);
 
-        for(long[] data : queue) 
-        {
-            session.execute(
-                SimpleStatement.newInstance(deleteQuery, data[0]));            
+        for (long id : queueLocal) {
+            session.execute(deleteStatement.bind(id));
         }
     }
 
     @Override
-    public void clear() 
-    {
-        storeQueue.clear();
-        deleteQueue.clear();
-        queryQueue.clear();
-    }
-
-    @Override
-    public void close() throws Exception 
-    {
-        if (session != null)
-        {
-            if (!session.isClosed())
-            {
-               session.close();
-               session = null;
-            }
-        }
+    public void clear() {
+       session.close();
     }
 }
