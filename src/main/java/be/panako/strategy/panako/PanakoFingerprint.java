@@ -53,12 +53,12 @@ public class PanakoFingerprint {
 	public final int t1;
 
 	/**
-	 * The time component of the first event point
+	 * The frequency component of the first event point
 	 */
 	public final int f1;
 
 	/**
-	 * The time component of the first event point
+	 * The magnitude component of the first event point
 	 */
 	public final float m1;
 
