@@ -129,7 +129,7 @@ public class OlafStorageFile implements OlafStorage {
 	@Override
 	public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1) {
 		long[] data = {fingerprintHash,resourceIdentifier,t1};
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().getIntrinsicId();
 		if(!storeQueue.containsKey(threadID))
 			storeQueue.put(threadID, new ArrayList<long[]>());
 		storeQueue.get(threadID).add(data);
@@ -162,7 +162,7 @@ public class OlafStorageFile implements OlafStorage {
 	 */
 	public String storeQueueToString( ) {
 		if(storeQueue.isEmpty()) return null;
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().getIntrinsicId();
 		if(!storeQueue.containsKey(threadID)) return null;
 		
 		List<long[]> queue = storeQueue.get(threadID);
@@ -175,7 +175,7 @@ public class OlafStorageFile implements OlafStorage {
 	@Override
 	public void processStoreQueue() {
 		if(storeQueue.isEmpty()) return;
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().getIntrinsicId();
 		if(!storeQueue.containsKey(threadID)) return;
 		
 		List<long[]> queue = storeQueue.get(threadID);

@@ -1,4 +1,5 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "automatic",
+    "devxcopilot.userToken": "6a1cc5fb-7600-491c-9cef-d5a2245d5d02"
 }

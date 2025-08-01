@@ -131,7 +131,7 @@ public class OlafStorageMemory implements OlafStorage {
 	}
 
 	public void addToQueryQueue(long queryHash) {
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().getIntrinsicId();
 		if(!queryQueue.containsKey(threadID))
 			queryQueue.put(threadID, new ArrayList<>());
 		queryQueue.get(threadID).add(queryHash);
@@ -142,7 +142,7 @@ public class OlafStorageMemory implements OlafStorage {
 		if (queryQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getId();
+		long threadID = Thread.currentThread().getIntrinsicId();
 		if(!queryQueue.containsKey(threadID))
 			return;
 		
