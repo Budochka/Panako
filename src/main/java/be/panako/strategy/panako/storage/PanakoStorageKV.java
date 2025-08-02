@@ -181,7 +181,7 @@ public class PanakoStorageKV implements PanakoStorage{
 
 	public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1,int f1) {
 		long[] data = {fingerprintHash,resourceIdentifier,t1,f1};
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			storeQueue.put(threadID, new ArrayList<long[]>());
 		storeQueue.get(threadID).add(data);
@@ -192,7 +192,7 @@ public class PanakoStorageKV implements PanakoStorage{
 		if (storeQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			return;
 		
@@ -230,7 +230,7 @@ public class PanakoStorageKV implements PanakoStorage{
 	@Override
 	public void addToDeleteQueue(long fingerprintHash, int resourceIdentifier, int t1,int f1) {
 		long[] data = {fingerprintHash,resourceIdentifier,t1,f1};
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!deleteQueue.containsKey(threadID))
 			deleteQueue.put(threadID, new ArrayList<long[]>());
 		deleteQueue.get(threadID).add(data);
@@ -241,7 +241,7 @@ public class PanakoStorageKV implements PanakoStorage{
 		if (storeQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			return;
 		
@@ -278,7 +278,7 @@ public class PanakoStorageKV implements PanakoStorage{
 
 	@Override
 	public void addToQueryQueue(long queryHash) {
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!queryQueue.containsKey(threadID))
 			queryQueue.put(threadID, new ArrayList<Long>());
 		queryQueue.get(threadID).add(queryHash);
@@ -295,7 +295,7 @@ public class PanakoStorageKV implements PanakoStorage{
 		if (queryQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!queryQueue.containsKey(threadID))
 			return;
 		

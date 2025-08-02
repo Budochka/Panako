@@ -190,7 +190,7 @@ public class OlafStorageKV implements OlafStorage {
 	@Override
 	public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1) {
 		long[] data = {fingerprintHash,resourceIdentifier,t1};
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			storeQueue.put(threadID, new ArrayList<>());
 		storeQueue.get(threadID).add(data);
@@ -204,7 +204,7 @@ public class OlafStorageKV implements OlafStorage {
 		if (storeQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			return;
 		
@@ -248,7 +248,7 @@ public class OlafStorageKV implements OlafStorage {
 	
 	public void addToDeleteQueue(long key, int val1, int val2) {
 		long[] data = {key,val1,val2};
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!deleteQueue.containsKey(threadID))
 			deleteQueue.put(threadID, new ArrayList<long[]>());
 		deleteQueue.get(threadID).add(data);
@@ -258,7 +258,7 @@ public class OlafStorageKV implements OlafStorage {
 		if (storeQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			return;
 		
@@ -294,7 +294,7 @@ public class OlafStorageKV implements OlafStorage {
 	}
 	
 	public void addToQueryQueue(long queryHash) {
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!queryQueue.containsKey(threadID))
 			queryQueue.put(threadID, new ArrayList<Long>());
 		queryQueue.get(threadID).add(queryHash);
@@ -308,7 +308,7 @@ public class OlafStorageKV implements OlafStorage {
 		if (queryQueue.isEmpty())
 			return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!queryQueue.containsKey(threadID))
 			return;
 		

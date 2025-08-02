@@ -142,7 +142,7 @@ public class PanakoStorageFile implements PanakoStorage {
 
 	public void addToStoreQueue(long fingerprintHash, int resourceIdentifier, int t1,int f1) {
 		long[] data = {fingerprintHash,resourceIdentifier,t1,f1};
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		if(!storeQueue.containsKey(threadID))
 			storeQueue.put(threadID, new ArrayList<long[]>());
 		storeQueue.get(threadID).add(data);
@@ -171,7 +171,7 @@ public class PanakoStorageFile implements PanakoStorage {
 	public void processStoreQueue() {
 		if(storeQueue.isEmpty()) return;
 		
-		long threadID = Thread.currentThread().getIntrinsicId();
+		long threadID = Thread.currentThread().threadId();
 		
 		if(!storeQueue.containsKey(threadID)) return;
 		
